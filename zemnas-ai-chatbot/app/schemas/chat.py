@@ -6,12 +6,15 @@ class ChatRequest(BaseModel):
 
     session_id: str = Field(
         ...,
+        min_length=1,
+        max_length=255,
         description="Unique conversation session ID"
     )
 
     message: str = Field(
         ...,
-        min_length=1
+        min_length=1,
+        max_length=10000,
     )
 
 

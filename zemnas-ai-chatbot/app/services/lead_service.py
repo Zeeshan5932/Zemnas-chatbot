@@ -86,6 +86,12 @@ def update_lead(
 
         "timeline",
 
+        "appointment_requested",
+
+        "appointment_date",
+
+        "appointment_time",
+
         "status"
     ]
 
@@ -96,7 +102,7 @@ def update_lead(
 
             key in allowed_fields
 
-            and value
+            and value is not None
 
         ):
 

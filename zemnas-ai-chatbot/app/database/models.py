@@ -4,10 +4,11 @@ from sqlalchemy import (
     String,
     Text,
     DateTime,
-    ForeignKey
+    ForeignKey,
+    Boolean,
 )
 
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, relationship
 
 from datetime import datetime
 
@@ -124,6 +125,10 @@ class Lead(Base):
         nullable=True
     )
 
+    appointment_requested = Column(Boolean, default=False, nullable=False)
+    appointment_date = Column(String(255), nullable=True)
+    appointment_time = Column(String(255), nullable=True)
+
     status = Column(
         String(100),
         default="collecting"
@@ -133,6 +138,8 @@ class Lead(Base):
         DateTime,
         default=datetime.utcnow
     )
+
+    appointments = relationship("Appointment", back_populates="lead")
 
 
 class Appointment(Base):
@@ -146,7 +153,8 @@ class Appointment(Base):
 
     lead_id = Column(
         Integer,
-        ForeignKey("leads.id")
+        ForeignKey("leads.id"),
+        nullable=False,
     )
 
     preferred_date = Column(
@@ -168,3 +176,5 @@ class Appointment(Base):
         DateTime,
         default=datetime.utcnow
     )
+
+    lead = relationship("Lead", back_populates="appointments")

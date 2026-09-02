@@ -20,6 +20,7 @@ from app.agent.nodes import (
 
     generate_response
 )
+from app.agent.router import route_after_intent, route_after_retrieval
 
 
 def create_graph():
@@ -77,19 +78,24 @@ def create_graph():
     )
 
 
-    workflow.add_edge(
-
+    workflow.add_conditional_edges(
         "classify_intent",
-
-        "retrieve_knowledge"
+        route_after_intent,
+        {
+            "retrieve_knowledge": "retrieve_knowledge",
+            "extract_lead_information": "extract_lead_information",
+            "generate_response": "generate_response",
+        },
     )
 
 
-    workflow.add_edge(
-
+    workflow.add_conditional_edges(
         "retrieve_knowledge",
-
-        "extract_lead_information"
+        route_after_retrieval,
+        {
+            "extract_lead_information": "extract_lead_information",
+            "generate_response": "generate_response",
+        },
     )
 
 

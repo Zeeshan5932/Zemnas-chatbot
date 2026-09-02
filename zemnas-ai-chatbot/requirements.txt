@@ -22,3 +22,4 @@ pydantic-settings
 python-dotenv
 
 typing-extensions
+pytest

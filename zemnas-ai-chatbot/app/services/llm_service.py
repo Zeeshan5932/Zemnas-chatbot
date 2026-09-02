@@ -12,6 +12,9 @@ def get_llm():
 
     if _llm is None:
 
+        if not settings.GOOGLE_API_KEY:
+            raise RuntimeError("GOOGLE_API_KEY is not configured")
+
         _llm = ChatGoogleGenerativeAI(
 
             model=settings.MODEL_NAME,
