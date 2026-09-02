@@ -1,19 +1,35 @@
-from typing import TypedDict
-from typing import Optional
-from typing import List
-from typing import Dict
-from typing import Any
+from typing import TypedDict, Optional, List, Dict, Any
 
 
 class AgentState(TypedDict, total=False):
 
+    # ==========================================
+    # SESSION
+    # ==========================================
+
     session_id: str
+
+    # ==========================================
+    # CURRENT MESSAGE
+    # ==========================================
 
     user_message: str
 
+    # ==========================================
+    # CONVERSATION
+    # ==========================================
+
     chat_history: List[Dict[str, str]]
 
+    # ==========================================
+    # INTENT
+    # ==========================================
+
     intent: Optional[str]
+
+    # ==========================================
+    # LEAD INFORMATION
+    # ==========================================
 
     service: Optional[str]
 
@@ -31,16 +47,36 @@ class AgentState(TypedDict, total=False):
 
     timeline: Optional[str]
 
+    # ==========================================
+    # APPOINTMENT
+    # ==========================================
+
     appointment_requested: bool
 
     appointment_date: Optional[str]
 
     appointment_time: Optional[str]
 
-    response: str
+    # ==========================================
+    # RAG
+    # ==========================================
 
     retrieved_context: str
 
+    # ==========================================
+    # LEAD STATUS
+    # ==========================================
+
     lead_status: Optional[str]
 
-    lead_data: Dict[str, Any]
+    # ==========================================
+    # FINAL RESPONSE
+    # ==========================================
+
+    response: str
+
+    # ==========================================
+    # TEMPORARY EXTRACTION
+    # ==========================================
+
+    extracted_lead: Dict[str, Any]

@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     GOOGLE_API_KEY: Optional[str] = None
 
-    MODEL_NAME: str = "gemini-2.5-flash"
+    MODEL_NAME: str = "gemini-3.5-flash"
 
     DATABASE_URL: str = "sqlite:///./zemnas.db"
 

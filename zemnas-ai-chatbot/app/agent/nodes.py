@@ -12,15 +12,59 @@ from app.agent.prompts import (
 )
 
 from app.rag.retriever import get_retriever
+
 from app.core.logging import get_logger
 
 
 logger = get_logger(__name__)
 
 
-# ==========================================
-# 1. CLASSIFY USER INTENT
-# ==========================================
+# ============================================================
+# CONSTANTS
+# ============================================================
+
+LEAD_FIELDS = [
+
+    "name",
+    "email",
+    "phone",
+    "company_name",
+    "service",
+    "project_description",
+    "budget",
+    "timeline",
+    "appointment_requested",
+    "appointment_date",
+    "appointment_time"
+]
+
+
+VALID_INTENTS = [
+
+    "general_chat",
+    "company_information",
+    "service_inquiry",
+    "pricing_inquiry",
+    "lead_inquiry",
+    "appointment_booking",
+    "human_support",
+    "other"
+]
+
+
+REQUIRED_LEAD_FIELDS = [
+
+    "name",
+    "service",
+    "project_description",
+    "email",
+    "phone"
+]
+
+
+# ============================================================
+# 1. CLASSIFY INTENT
+# ============================================================
 
 def classify_intent(state):
 
@@ -37,7 +81,9 @@ def classify_intent(state):
 
     try:
 
-        response = llm.invoke(prompt)
+        response = llm.invoke(
+            prompt
+        )
 
         intent = str(
             response.content
@@ -49,26 +95,16 @@ def classify_intent(state):
             .strip()
         )
 
-    except Exception as error:
+    except Exception:
 
-        logger.exception("Intent classification failed")
+        logger.exception(
+            "Intent classification failed"
+        )
 
         intent = "general_chat"
 
 
-    valid_intents = [
-        "general_chat",
-        "company_information",
-        "service_inquiry",
-        "pricing_inquiry",
-        "lead_inquiry",
-        "appointment_booking",
-        "human_support",
-        "other"
-    ]
-
-
-    if intent not in valid_intents:
+    if intent not in VALID_INTENTS:
 
         intent = "general_chat"
 
@@ -78,9 +114,9 @@ def classify_intent(state):
     }
 
 
-# ==========================================
-# 2. RETRIEVE ZEMNAS KNOWLEDGE
-# ==========================================
+# ============================================================
+# 2. RETRIEVE WEBSITE KNOWLEDGE
+# ============================================================
 
 def retrieve_knowledge(state):
 
@@ -114,35 +150,47 @@ def retrieve_knowledge(state):
                 "Zemnas Website"
             )
 
-            content = document.page_content.strip()
-
-            context_parts.append(
-                f"Source: {source}\n{content}"
+            content = (
+                document.page_content
+                .strip()
             )
 
 
-        context = "\n\n".join(
-            context_parts
-        )
+            if not content:
+
+                continue
+
+
+            context_parts.append(
+
+                f"Source: {source}\n"
+                f"{content}"
+            )
 
 
         return {
-            "retrieved_context": context
+
+            "retrieved_context":
+                "\n\n".join(
+                    context_parts
+                )
         }
 
 
-    except Exception as error:
+    except Exception:
 
-        logger.exception("RAG retrieval failed")
+        logger.exception(
+            "RAG retrieval failed"
+        )
 
         return {
             "retrieved_context": ""
         }
 
 
-# ==========================================
-# 3. EXTRACT LEAD INFORMATION
-# ==========================================
+# ============================================================
+# 3. EXTRACT NEW LEAD INFORMATION
+# ============================================================
 
 def extract_lead_information(state):
 
@@ -169,14 +217,24 @@ def extract_lead_information(state):
         ).strip()
 
 
-        # Remove markdown JSON block
-        if content.startswith("```"):
+        if content.startswith(
+            "```"
+        ):
 
             content = (
                 content
-                .replace("```json", "")
-                .replace("```JSON", "")
-                .replace("```", "")
+                .replace(
+                    "```json",
+                    ""
+                )
+                .replace(
+                    "```JSON",
+                    ""
+                )
+                .replace(
+                    "```",
+                    ""
+                )
                 .strip()
             )
 
@@ -191,40 +249,31 @@ def extract_lead_information(state):
             dict
         ):
 
-            return {}
+            data = {}
 
 
-    except Exception as error:
+    except Exception:
 
-        logger.exception("Lead extraction failed")
+        logger.exception(
+            "Lead extraction failed"
+        )
 
-        return {}
-
-
-    allowed_fields = [
-
-        "name",
-        "email",
-        "phone",
-        "company_name",
-        "service",
-        "project_description",
-        "budget",
-        "timeline",
-        "appointment_requested",
-        "appointment_date",
-        "appointment_time"
-    ]
+        data = {}
 
 
-    update = {}
+    extracted = {}
 
 
-    for key, value in data.items():
+    for key in LEAD_FIELDS:
 
-        if key not in allowed_fields:
+        if key not in data:
 
             continue
+
+
+        value = data.get(
+            key
+        )
 
 
         if value is None:
@@ -239,6 +288,7 @@ def extract_lead_information(state):
 
             value = value.strip()
 
+
             if value.lower() in [
                 "",
                 "null",
@@ -250,15 +300,48 @@ def extract_lead_information(state):
                 continue
 
 
-        update[key] = value
+        extracted[key] = value
+
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    # Merge newly extracted information with existing state.
+    # --------------------------------------------------------
+
+    update = {}
+
+    for field in LEAD_FIELDS:
+
+        old_value = state.get(
+            field
+        )
+
+        new_value = extracted.get(
+            field
+        )
+
+
+        if new_value not in [
+            None,
+            ""
+        ]:
+
+            update[field] = new_value
+
+        elif old_value not in [
+            None,
+            ""
+        ]:
+
+            update[field] = old_value
 
 
     return update
 
 
-# ==========================================
+# ============================================================
 # 4. CHECK LEAD STATUS
-# ==========================================
+# ============================================================
 
 def check_lead_status(state):
 
@@ -274,32 +357,43 @@ def check_lead_status(state):
         "project_description"
     )
 
+    appointment_requested = state.get(
+        "appointment_requested",
+        False
+    )
 
-    service_intents = [
+
+    lead_intents = [
 
         "service_inquiry",
         "lead_inquiry",
-        "pricing_inquiry"
+        "pricing_inquiry",
+        "appointment_booking"
     ]
 
 
-    if intent in service_intents:
+    if intent in lead_intents:
 
         return {
             "lead_status": "collecting"
         }
 
 
-    if service or project_description:
+    if service:
 
         return {
             "lead_status": "collecting"
         }
 
 
-    if state.get(
-        "appointment_requested"
-    ):
+    if project_description:
+
+        return {
+            "lead_status": "collecting"
+        }
+
+
+    if appointment_requested:
 
         return {
             "lead_status": "collecting"
@@ -311,33 +405,32 @@ def check_lead_status(state):
     }
 
 
-# ==========================================
-# 5. FIND MISSING LEAD FIELDS
-# ==========================================
+# ============================================================
+# 5. FIND MISSING LEAD INFORMATION
+# ============================================================
 
 def get_missing_fields(state):
-
-    required_fields = [
-
-        "name",
-        "service",
-        "project_description",
-        "email",
-        "phone"
-    ]
-
 
     missing = []
 
 
-    for field in required_fields:
+    for field in REQUIRED_LEAD_FIELDS:
 
         value = state.get(
             field
         )
 
 
-        if not value:
+        if value is None:
+
+            missing.append(
+                field
+            )
+
+        elif isinstance(
+            value,
+            str
+        ) and not value.strip():
 
             missing.append(
                 field
@@ -347,20 +440,22 @@ def get_missing_fields(state):
     return missing
 
 
-# ==========================================
-# 6. CHECK COMPLETE LEAD
-# ==========================================
+# ============================================================
+# 6. CHECK WHETHER LEAD IS COMPLETE
+# ============================================================
 
 def is_lead_complete(state):
 
     return len(
-        get_missing_fields(state)
+        get_missing_fields(
+            state
+        )
     ) == 0
 
 
-# ==========================================
+# ============================================================
 # 7. FORMAT CHAT HISTORY
-# ==========================================
+# ============================================================
 
 def format_chat_history(state):
 
@@ -372,26 +467,34 @@ def format_chat_history(state):
 
     if not history:
 
-        return "No previous conversation."
+        return (
+            "No previous conversation."
+        )
 
 
     formatted = []
 
 
-    for message in history:
+    for item in history:
 
-        role = message.get(
+        role = item.get(
             "role",
             "user"
         )
 
-        content = message.get(
+        content = item.get(
             "content",
             ""
         )
 
 
+        if not content:
+
+            continue
+
+
         formatted.append(
+
             f"{role.upper()}: {content}"
         )
 
@@ -401,9 +504,9 @@ def format_chat_history(state):
     )
 
 
-# ==========================================
+# ============================================================
 # 8. GENERATE RESPONSE
-# ==========================================
+# ============================================================
 
 def generate_response(state):
 
@@ -434,41 +537,60 @@ def generate_response(state):
     )
 
 
-    chat_history = format_chat_history(
+    history = format_chat_history(
         state
     )
 
 
-    # ======================================
-    # BASE SYSTEM PROMPT
-    # ======================================
+    # --------------------------------------------------------
+    # Base prompt
+    # --------------------------------------------------------
 
     prompt = SYSTEM_PROMPT.format(
         context=context
     )
 
 
+    # --------------------------------------------------------
+    # Conversation information
+    # --------------------------------------------------------
+
     prompt += f"""
 
 CONVERSATION HISTORY:
 
-{chat_history}
-
+{history}
 
 CURRENT USER MESSAGE:
 
 {user_message}
 
-
-DETECTED INTENT:
+CURRENT INTENT:
 
 {intent}
+
+CURRENT LEAD INFORMATION:
+
+Name: {state.get("name", "Not provided")}
+Email: {state.get("email", "Not provided")}
+Phone: {state.get("phone", "Not provided")}
+Company: {state.get("company_name", "Not provided")}
+Service: {state.get("service", "Not provided")}
+Project: {state.get("project_description", "Not provided")}
+Budget: {state.get("budget", "Not provided")}
+Timeline: {state.get("timeline", "Not provided")}
+
+IMPORTANT:
+Use the conversation history and current lead information
+together.
+
+Do not ask the visitor for information that is already known.
 """
 
 
-    # ======================================
+    # ========================================================
     # LEAD COLLECTION
-    # ======================================
+    # ========================================================
 
     if lead_status == "collecting":
 
@@ -477,9 +599,9 @@ DETECTED INTENT:
         )
 
 
-        # ------------------------------
+        # ----------------------------------------------------
         # Lead incomplete
-        # ------------------------------
+        # ----------------------------------------------------
 
         if missing_fields:
 
@@ -491,19 +613,19 @@ DETECTED INTENT:
             next_actions = {
 
                 "name":
-                    "Ask the visitor for their name.",
+                    "Naturally ask for the visitor's name.",
 
                 "service":
-                    "Ask which Zemnas service they need.",
+                    "Naturally ask what service they need.",
 
                 "project_description":
-                    "Ask the visitor to briefly describe what they want to build or achieve.",
+                    "Naturally ask what they want to build or achieve.",
 
                 "email":
-                    "Ask for their email address so the Zemnas team can contact them.",
+                    "Naturally ask which email Zemnas can use to contact them.",
 
                 "phone":
-                    "Ask for their phone or WhatsApp number."
+                    "Naturally ask for their phone or WhatsApp number."
             }
 
 
@@ -511,11 +633,12 @@ DETECTED INTENT:
 
                 next_field,
 
-                "Ask for the next missing information."
+                "Ask for the most useful missing information."
             )
 
 
             prompt += "\n\n"
+
 
             prompt += LEAD_COLLECTION_PROMPT.format(
 
@@ -567,13 +690,14 @@ DETECTED INTENT:
             )
 
 
-        # ------------------------------
+        # ----------------------------------------------------
         # Lead complete
-        # ------------------------------
+        # ----------------------------------------------------
 
         else:
 
             prompt += "\n\n"
+
 
             prompt += LEAD_COMPLETE_PROMPT.format(
 
@@ -611,13 +735,14 @@ DETECTED INTENT:
             )
 
 
-    # ======================================
-    # APPOINTMENT FLOW
-    # ======================================
+    # ========================================================
+    # APPOINTMENT
+    # ========================================================
 
     if intent == "appointment_booking":
 
         prompt += "\n\n"
+
 
         prompt += APPOINTMENT_PROMPT.format(
 
@@ -663,9 +788,9 @@ DETECTED INTENT:
         )
 
 
-    # ======================================
-    # GENERATE LLM RESPONSE
-    # ======================================
+    # ========================================================
+    # CALL LLM
+    # ========================================================
 
     try:
 
@@ -673,17 +798,28 @@ DETECTED INTENT:
             prompt
         )
 
+
         final_response = str(
             response.content
         ).strip()
 
 
-    except Exception as error:
+        if not final_response:
 
-        logger.exception("Response generation failed")
+            final_response = (
+                "Sorry, I couldn't generate a response right now."
+            )
+
+
+    except Exception:
+
+        logger.exception(
+            "Response generation failed"
+        )
+
 
         final_response = (
-            "Sorry, I'm having trouble responding right now. "
+            "Sorry, I'm having a little trouble right now. "
             "Please try again."
         )
 
