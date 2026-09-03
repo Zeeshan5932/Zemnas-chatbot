@@ -1,56 +1,34 @@
-from app.rag.loader import (
-    load_from_sitemap
-)
-
-from app.rag.splitter import (
-    split_documents
-)
-
-from app.rag.vectorstore import (
-    create_vectorstore
-)
+from app.rag.loader import load_from_text_file
+from app.rag.splitter import split_documents
+from app.rag.vectorstore import create_vectorstore
 
 
 def ingest_website():
 
-    print(
-        "Starting website ingestion..."
-    )
+    print("Starting Zemnas knowledge ingestion...")
 
-
-    # Step 1
-    documents = load_from_sitemap()
-
+    # Step 1: Load zemnas.txt
+    documents = load_from_text_file()
 
     if not documents:
-
         raise Exception(
-            "No website documents found."
+            "No Zemnas knowledge documents found."
         )
 
-
     print(
-        f"Loaded {len(documents)} pages"
+        f"Loaded {len(documents)} document(s)"
     )
 
-
-    # Step 2
-    chunks = split_documents(
-        documents
-    )
-
+    # Step 2: Split into chunks
+    chunks = split_documents(documents)
 
     print(
         f"Created {len(chunks)} chunks"
     )
 
-
-    # Step 3
-    create_vectorstore(
-        chunks
-    )
-
+    # Step 3: Create Chroma vector database
+    create_vectorstore(chunks)
 
     print(
-        "Vector database created successfully!"
+        "Zemnas vector database created successfully!"
     )
