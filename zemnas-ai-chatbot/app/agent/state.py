@@ -2,81 +2,37 @@ from typing import TypedDict, Optional, List, Dict, Any
 
 
 class AgentState(TypedDict, total=False):
-
-    # ==========================================
-    # SESSION
-    # ==========================================
-
     session_id: str
-
-    # ==========================================
-    # CURRENT MESSAGE
-    # ==========================================
-
     user_message: str
-
-    # ==========================================
-    # CONVERSATION
-    # ==========================================
 
     chat_history: List[Dict[str, str]]
 
-    # ==========================================
-    # INTENT
-    # ==========================================
-
+    # AI understanding
     intent: Optional[str]
 
-    # ==========================================
-    # LEAD INFORMATION
-    # ==========================================
-
-    service: Optional[str]
-
+    # Lead information
     name: Optional[str]
-
     email: Optional[str]
-
     phone: Optional[str]
-
     company_name: Optional[str]
-
+    service: Optional[str]
     project_description: Optional[str]
-
     budget: Optional[str]
-
     timeline: Optional[str]
 
-    # ==========================================
-    # APPOINTMENT
-    # ==========================================
-
+    # Appointment
     appointment_requested: bool
-
     appointment_date: Optional[str]
-
     appointment_time: Optional[str]
 
-    # ==========================================
     # RAG
-    # ==========================================
-
     retrieved_context: str
 
-    # ==========================================
-    # LEAD STATUS
-    # ==========================================
-
+    # Lead status
     lead_status: Optional[str]
 
-    # ==========================================
-    # FINAL RESPONSE
-    # ==========================================
-
+    # Final answer
     response: str
 
-    # ==========================================
-    # TEMPORARY EXTRACTION
-    # ==========================================
-
+    # Internal analysis
     extracted_lead: Dict[str, Any]

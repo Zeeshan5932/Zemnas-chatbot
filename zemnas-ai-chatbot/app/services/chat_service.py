@@ -6,27 +6,24 @@ from app.core.logging import get_logger
 
 from app.database.models import (
     Lead,
-    Message
+    Message,
 )
 
 from app.database.session import SessionLocal
 
 from app.services.appointment_service import (
-    request_appointment
+    request_appointment,
 )
 
 from app.services.lead_service import (
-    update_lead
+    update_lead,
 )
 
 
-logger = get_logger(
-    __name__
-)
+logger = get_logger(__name__)
 
 
 LEAD_FIELDS = (
-
     "name",
     "email",
     "phone",
@@ -41,118 +38,79 @@ LEAD_FIELDS = (
 )
 
 
-# ============================================================
-# SAVE MESSAGE
-# ============================================================
-
 def save_message(
     db,
     session_id: str,
     role: str,
-    content: str
-) -> None:
-
+    content: str,
+):
     db.add(
-
         Message(
-
             session_id=session_id,
-
             role=role,
-
-            content=content
+            content=content,
         )
     )
 
     db.commit()
 
 
-# ============================================================
-# GET CONVERSATION HISTORY
-# ============================================================
-
 def get_conversation_history(
     db,
     session_id: str,
-    limit: int = 12
-) -> list:
-
+    limit: int = 10,
+):
     messages = (
-
         db.query(Message)
-
         .filter(
             Message.session_id == session_id
         )
-
         .order_by(
             Message.created_at.desc()
         )
-
         .limit(limit)
-
         .all()
     )
 
-
     messages.reverse()
 
-
     return [
-
         {
             "role": item.role,
-
-            "content": item.content
+            "content": item.content,
         }
-
         for item in messages
     ]
 
 
-# ============================================================
-# CONVERT DATABASE LEAD → AGENT STATE
-# ============================================================
-
 def _lead_state(
-    lead: Optional[Lead]
+    lead: Optional[Lead],
 ) -> dict:
 
     if lead is None:
-
         return {}
 
-
     state = {}
-
 
     for field in LEAD_FIELDS:
 
         value = getattr(
             lead,
             field,
-            None
+            None,
         )
 
-
         if value is not None:
-
             state[field] = value
-
 
     return state
 
 
-# ============================================================
-# MERGE LEAD DATA
-# ============================================================
-
 def _extract_lead_data(
-    result: dict
+    result: dict,
 ) -> dict:
 
     lead_data = {}
-
 
     for field in LEAD_FIELDS:
 
@@ -160,278 +118,185 @@ def _extract_lead_data(
             field
         )
 
-
         if value is None:
-
             continue
 
+        if isinstance(value, str):
 
-        if isinstance(
-            value,
-            str
-        ) and not value.strip():
+            value = value.strip()
 
-            continue
-
+            if not value:
+                continue
 
         lead_data[field] = value
-
 
     return lead_data
 
 
-# ============================================================
-# PROCESS CHAT
-# ============================================================
-
 def process_chat(
     session_id: str,
-    message: str
+    message: str,
 ):
 
     db = SessionLocal()
 
-
     try:
 
-        # ====================================================
-        # 1. GET PREVIOUS CONVERSATION
-        # ====================================================
+        # ---------------------------------------------
+        # Previous conversation
+        # ---------------------------------------------
 
         history = get_conversation_history(
-
             db,
-
-            session_id
+            session_id,
+            limit=10,
         )
 
-
-        # ====================================================
-        # 2. GET EXISTING LEAD
-        # ====================================================
+        # ---------------------------------------------
+        # Existing lead
+        # ---------------------------------------------
 
         lead = (
-
             db.query(Lead)
-
             .filter(
                 Lead.session_id == session_id
             )
-
             .first()
         )
-
 
         existing_lead_state = _lead_state(
             lead
         )
 
-
-        # ====================================================
-        # 3. SAVE USER MESSAGE
-        # ====================================================
+        # ---------------------------------------------
+        # Save user message
+        # ---------------------------------------------
 
         save_message(
-
             db,
-
             session_id,
-
             "user",
-
-            message
+            message,
         )
 
-
-        # ====================================================
-        # 4. BUILD AGENT STATE
-        # ====================================================
+        # ---------------------------------------------
+        # Agent state
+        # ---------------------------------------------
 
         agent_state = {
-
-            "session_id":
-                session_id,
-
-            "user_message":
-                message,
-
-            "chat_history":
-                history,
-
-            **existing_lead_state
+            "session_id": session_id,
+            "user_message": message,
+            "chat_history": history,
+            **existing_lead_state,
         }
 
-
-        # ====================================================
-        # 5. RUN LANGGRAPH
-        # ====================================================
+        # ---------------------------------------------
+        # Run graph
+        # ---------------------------------------------
 
         result = chatbot_graph.invoke(
             agent_state
         )
 
-
-        # ====================================================
-        # 6. GET RESPONSE
-        # ====================================================
-
         response = (
-
-            result.get(
-                "response"
-            )
-
+            result.get("response")
             or
-
             "Sorry, I couldn't process that right now."
         )
 
-
-        # ====================================================
-        # 7. SAVE ASSISTANT MESSAGE
-        # ====================================================
+        # ---------------------------------------------
+        # Save assistant response
+        # ---------------------------------------------
 
         save_message(
-
             db,
-
             session_id,
-
             "assistant",
-
-            response
+            response,
         )
 
-
-        # ====================================================
-        # 8. EXTRACT UPDATED LEAD DATA
-        # ====================================================
+        # ---------------------------------------------
+        # Lead data
+        # ---------------------------------------------
 
         lead_data = _extract_lead_data(
             result
         )
 
-
-        # ====================================================
-        # 9. ADD LEAD STATUS
-        # ====================================================
-
         lead_status = result.get(
             "lead_status"
         )
 
-
         if lead_status:
+            lead_data["status"] = lead_status
 
-            lead_data["status"] = (
-                lead_status
-            )
-
-
-        # ====================================================
-        # 10. UPDATE DATABASE
-        # ====================================================
+        # ---------------------------------------------
+        # Save/update lead
+        # ---------------------------------------------
 
         if lead_data:
 
             lead = update_lead(
-
                 db,
-
                 session_id,
-
-                lead_data
+                lead_data,
             )
 
-
-        # ====================================================
-        # 11. APPOINTMENT REQUEST
-        # ====================================================
+        # ---------------------------------------------
+        # Appointment
+        # ---------------------------------------------
 
         appointment_requested = result.get(
             "appointment_requested",
-            False
+            False,
         )
 
+        appointment_date = result.get(
+            "appointment_date"
+        )
 
+        appointment_time = result.get(
+            "appointment_time"
+        )
+
+        # Only send to booking system when
+        # BOTH date and time are available.
         if (
-
             appointment_requested
-
             and lead
-
-            and (
-                result.get(
-                    "appointment_date"
-                )
-
-                or
-
-                result.get(
-                    "appointment_time"
-                )
-            )
+            and appointment_date
+            and appointment_time
         ):
 
             request_appointment(
-
                 db,
-
                 lead.id,
-
-                result.get(
-                    "appointment_date"
-                ),
-
-                result.get(
-                    "appointment_time"
-                )
+                appointment_date,
+                appointment_time,
             )
 
-
-        # ====================================================
-        # 12. RETURN API RESPONSE
-        # ====================================================
-
         return {
-
-            "response":
-                response,
-
-            "session_id":
-                session_id,
-
-            "intent":
-                result.get(
-                    "intent"
-                ),
-
-            "lead_data":
-                lead_data,
-
-            "lead_status":
-                result.get(
-                    "lead_status"
-                ),
+            "response": response,
+            "session_id": session_id,
+            "intent": result.get(
+                "intent"
+            ),
+            "lead_data": lead_data,
+            "lead_status": result.get(
+                "lead_status"
+            ),
         }
-
 
     except Exception:
 
         db.rollback()
 
-
         logger.exception(
-
-            "Chat processing failed "
-            "for session %s",
-
-            session_id
+            "Chat processing failed for session %s",
+            session_id,
         )
 
-
         raise
-
 
     finally:
 
