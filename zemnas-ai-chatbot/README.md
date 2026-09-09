@@ -27,5 +27,3 @@ The API is available at `/api/v1/chat` and `/api/v1/health`.
 ## Tests
 
 ```powershell
-pytest
-```
