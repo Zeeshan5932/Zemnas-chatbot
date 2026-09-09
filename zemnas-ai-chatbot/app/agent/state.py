@@ -1,10 +1,11 @@
+
 from typing import TypedDict, Optional, List, Dict, Any
 
 
 class AgentState(TypedDict, total=False):
+    # Session
     session_id: str
     user_message: str
-
     chat_history: List[Dict[str, str]]
 
     # AI understanding
@@ -24,6 +25,11 @@ class AgentState(TypedDict, total=False):
     appointment_requested: bool
     appointment_date: Optional[str]
     appointment_time: Optional[str]
+    appointment_status: Optional[str]
+    appointment_ready: bool
+
+    # Lead ID for database appointment request
+    lead_id: Optional[int]
 
     # RAG
     retrieved_context: str
